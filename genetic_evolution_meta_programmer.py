@@ -23,7 +23,7 @@ MAX_STATE_NUMBER = 4
 
 POPULATION = 100
 MUTATION_RATE = 0.115
-MAX_MUTATION_ATTEMPTS = 500
+MAX_MUTATION_ATTEMPTS = 30
 SELECTION_RATE = 0.2
 TOP_PERFORMERS_COUNT = int(POPULATION * SELECTION_RATE)
 OUTPUT_DIR = "./output/"
@@ -79,11 +79,13 @@ class Meta_Program_Line():
 		return s
 
 class Meta_Program():
-	def __init__(self, lines:list, filename:str):
+	def __init__(self, lines:list, id:int):
 		for line in lines:
 			assert isinstance(line, Meta_Program_Line)
 		self.lines = lines
-		self.filename = filename
+		assert isinstance(id, int)
+		self.id = id
+		self.filename = "Program" + str(id) + ".pico"
 
 	def toString(self) -> str:
 		s = ''
@@ -94,7 +96,7 @@ class Meta_Program():
 		return s
 
 	def __repr__(self):
-		return "#PROGRAM\n" + self.toString() + "\n"
+		return f"#PROGRAM {self.id}\n" + self.toString() + "\n"
 
 class GeneticEvolutionMetaProgrammer():
 
@@ -111,17 +113,19 @@ class GeneticEvolutionMetaProgrammer():
 		self.genetic_evolution()
 
 	def genetic_evolution(self):
-	
+		valid_population = []
 		while True:
 			print("\ngeneration: " + str(self.generation) + ", population: " + str(len(self.population)) + ", mutation_rate: " + str(MUTATION_RATE))
 			
 			# 1. Selection
-			chromosomes, elite = self.select_elite()
+			chromosomes, elite = self.select_elite(valid_population)
 			print("ELITE", elite, "len", len(elite))
-			
+			for e in elite:
+				print(e[0].id, e[1])
 			assert all([isinstance(x, tuple) for x in elite])
 			# 2. Crossover (Roulette selection)
 			pairs = self.generate_pairs(elite)
+			print("-----------PAIRS-------------", pairs, "len", len(pairs))
 			selected_offsprings = []
 			for pair in pairs:
 				offsprings = self.crossover(pair[0][0], pair[1][0])
@@ -129,7 +133,7 @@ class GeneticEvolutionMetaProgrammer():
 			print("SELCTED OFFSPRINGS", selected_offsprings, "len", len(selected_offsprings))
 			# 3. Mutation
 			mutated_population = self.mutation(selected_offsprings)
-			print("MUTATED POPULATION", mutated_population)
+			print("MUTATED POPULATION", mutated_population, "len", len(mutated_population))
 
 			# 4. Validation (We don't want syntactically incorrect programs)
 			valid_population = []
@@ -161,10 +165,17 @@ class GeneticEvolutionMetaProgrammer():
 		return population
 
 
-	def select_elite(self):
+	def select_elite(self, population):
+		try:
+			all_numbers = [int(p.id) for p in population]
+		except ValueError:
+			raise NameError("Currupt population")
 		scores_for_chromosomes = []
 		cntr = 0
 		while cntr < POPULATION:
+			if cntr in all_numbers:
+				cntr += 1
+				continue
 			# Hardcode the first line to open with state 0
 			lines = []
 			lines.append(Meta_Program_Line(0, \
@@ -175,7 +186,8 @@ class GeneticEvolutionMetaProgrammer():
 						random.choice(POSSIBLE_DIRECTIONS), random.choice([True, False]),\
 						random.choice(POSSIBLE_DIRECTIONS), random.choice(POSSIBLE_STATES)))
 			program_filename = "Program" + str(cntr) + ".pico"
-			program = Meta_Program(lines, program_filename)
+			program = Meta_Program(lines, cntr)
+			print("Testing", program.filename)
 			with open(program_filename, "w") as f:
 				f.write(program.toString())
 				f.close()
@@ -285,10 +297,11 @@ class GeneticEvolutionMetaProgrammer():
 	def mutation(self, selected_offsprings):
 		offsprings = []
 		for offspring in selected_offsprings:
+			print("Mutating", offspring.filename, end='')
 			valid = False
 			mutation_attempts = 0
-			offspring_mutation = copy.deepcopy(offspring)
 			while not valid and mutation_attempts < MAX_MUTATION_ATTEMPTS:
+				offspring_mutation = copy.deepcopy(offspring)
 				if np.random.choice([True, False], p=[MUTATION_RATE, 1-MUTATION_RATE]):
 					# only type of mutation that makes sense for this type of program is replace
 					location = np.random.randint(0, 3)
@@ -311,6 +324,7 @@ class GeneticEvolutionMetaProgrammer():
 				else:
 					valid = True
 					offsprings.append(offspring_mutation)
+			print("# of attempts", mutation_attempts)
 				
 		return offsprings
 
