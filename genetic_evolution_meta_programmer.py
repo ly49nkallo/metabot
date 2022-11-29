@@ -29,28 +29,36 @@ TOP_PERFORMERS_COUNT = int(POPULATION * SELECTION_RATE)
 OUTPUT_DIR = "./output/"
 PROGRAM_DIR = "./programs/"
 
+POSSIBLE_DIRECTIONS = [p.NORTH, p.SOUTH, p.EAST, p.WEST]
+POSSIBLE_STATES = list(range(0, MAX_STATE_NUMBER + 1))
+
+
+def generate_mask(direction, x:bool) -> str:
+	if not x:
+		if direction == p.NORTH:
+			return "N***"
+		elif direction == p.SOUTH:
+			return "***S"
+		elif direction == p.EAST:
+			return "*E**"
+		elif direction == p.WEST:
+			return "**W*"
+	if x:
+		if direction == p.NORTH:
+			return "x***"
+		elif direction == p.SOUTH:
+			return "***x"
+		elif direction == p.EAST:
+			return "*x**"
+		elif direction == p.WEST:
+			return "**x*"
+	raise NameError("Could not generate mask")
+
+POSSIBLE_SURROUNDINGS = [generate_mask(d, True) for d in POSSIBLE_DIRECTIONS] + [generate_mask(d, False) for d in POSSIBLE_DIRECTIONS]
+
 class Meta_Program_Line():
 	def __init__(self, state1, direction1, x:bool, direction2, state2):
-		def generate_mask(direction, x:bool) -> str:
-			if not x:
-				if direction == p.NORTH:
-					return "N***"
-				elif direction == p.SOUTH:
-					return "***S"
-				elif direction == p.EAST:
-					return "*E**"
-				elif direction == p.WEST:
-					return "**W*"
-			if x:
-				if direction == p.NORTH:
-					return "x***"
-				elif direction == p.SOUTH:
-					return "***x"
-				elif direction == p.EAST:
-					return "*x**"
-				elif direction == p.WEST:
-					return "**x*"
-			raise NameError("Could not generate mask")
+		
 		assert direction1 in [p.NORTH, p.SOUTH, p.EAST, p.WEST] and direction2 in [p.NORTH, p.SOUTH, p.EAST, p.WEST]
 		assert state1 in list(range(0, MAX_STATE_NUMBER + 1)) and state2 in list(range(0, MAX_STATE_NUMBER + 1))
 		self.state1 = state1
@@ -121,6 +129,7 @@ class GeneticEvolutionMetaProgrammer():
 			print("SELCTED OFFSPRINGS", selected_offsprings, "len", len(selected_offsprings))
 			# 3. Mutation
 			mutated_population = self.mutation(selected_offsprings)
+			print("MUTATED POPULATION", mutated_population)
 
 			# 4. Validation (We don't want syntactically incorrect programs)
 			valid_population = []
@@ -132,18 +141,17 @@ class GeneticEvolutionMetaProgrammer():
 			self.generation += 1
 
 	def generate_population(self, population):
-		possible_directions = [p.NORTH, p.SOUTH, p.EAST, p.WEST]
-		possible_states = list(range(0, MAX_STATE_NUMBER + 1))
+		
 		while len(population) < POPULATION:
 			lines = []
 			# Hardcode the first line to open with state 0
 			lines.append(Meta_Program_Line(0, \
-						random.choice(possible_directions), random.choice([True, False]),\
-						random.choice(possible_directions), random.choice(possible_states)))
+						random.choice(POSSIBLE_DIRECTIONS), random.choice([True, False]),\
+						random.choice(POSSIBLE_DIRECTIONS), random.choice(POSSIBLE_STATES)))
 			for i in range(random.randint(0, MAX_PROGRAM_SIZE-1)):
-				lines.append(Meta_Program_Line(random.choice(possible_states), \
-						random.choice(possible_directions), random.choice([True, False]),\
-						random.choice(possible_directions), random.choice(possible_states)))
+				lines.append(Meta_Program_Line(random.choice(POSSIBLE_STATES), \
+						random.choice(POSSIBLE_DIRECTIONS), random.choice([True, False]),\
+						random.choice(POSSIBLE_DIRECTIONS), random.choice(POSSIBLE_STATES)))
 			program = Meta_Program(lines, "Program")
 			
 			# length = random.randint(PROGRAM_LENGTH_LOWER_BOUND, PROGRAM_LENGTH_UPPER_BOUND)
@@ -155,19 +163,17 @@ class GeneticEvolutionMetaProgrammer():
 
 	def select_elite(self):
 		scores_for_chromosomes = []
-		possible_directions = [p.NORTH, p.SOUTH, p.EAST, p.WEST]
-		possible_states = list(range(0, MAX_STATE_NUMBER + 1))
 		cntr = 0
 		while cntr < POPULATION:
 			# Hardcode the first line to open with state 0
 			lines = []
 			lines.append(Meta_Program_Line(0, \
-						random.choice(possible_directions), random.choice([True, False]),\
-						random.choice(possible_directions), random.choice(possible_states)))
+						random.choice(POSSIBLE_DIRECTIONS), random.choice([True, False]),\
+						random.choice(POSSIBLE_DIRECTIONS), random.choice(POSSIBLE_STATES)))
 			for i in range(random.randint(0, MAX_PROGRAM_SIZE-1)):
-				lines.append(Meta_Program_Line(random.choice(possible_states), \
-						random.choice(possible_directions), random.choice([True, False]),\
-						random.choice(possible_directions), random.choice(possible_states)))
+				lines.append(Meta_Program_Line(random.choice(POSSIBLE_STATES), \
+						random.choice(POSSIBLE_DIRECTIONS), random.choice([True, False]),\
+						random.choice(POSSIBLE_DIRECTIONS), random.choice(POSSIBLE_STATES)))
 			program_filename = "Program" + str(cntr) + ".pico"
 			program = Meta_Program(lines, program_filename)
 			with open(program_filename, "w") as f:
@@ -283,22 +289,29 @@ class GeneticEvolutionMetaProgrammer():
 			mutation_attempts = 0
 			offspring_mutation = copy.deepcopy(offspring)
 			while not valid and mutation_attempts < MAX_MUTATION_ATTEMPTS:
-				for i in range(0, len(offspring_mutation)):
-					if np.random.choice([True, False], p=[MUTATION_RATE, 1-MUTATION_RATE]):
-						action_type = random.randint(0, 2)
-						if action_type == 0 and len(offspring_mutation) < PROGRAM_LENGTH_UPPER_BOUND: 
-							# Inserting random value at index
-							offspring_mutation = offspring_mutation[:i] + random.choice(AVAILABLE_OPS) + offspring_mutation[i:]
-						elif action_type == 1 and len(offspring_mutation) > PROGRAM_LENGTH_LOWER_BOUND: 
-							# Removing value at index
-							offspring_mutation = offspring_mutation[:i] + offspring_mutation[i+1:]
-						else: 
-							# Setting random value at index
-							offspring_mutation = self.set_value_at_index(offspring_mutation, random.choice(AVAILABLE_OPS), i)
-				if brainfuck.evaluate(offspring_mutation) is not None:
+				if np.random.choice([True, False], p=[MUTATION_RATE, 1-MUTATION_RATE]):
+					# only type of mutation that makes sense for this type of program is replace
+					location = np.random.randint(0, 3)
+					if location == 0:
+						offspring_mutation.state1 = np.random.choice(POSSIBLE_STATES)
+					if location == 1:
+						offspring_mutation.surroundings = np.random.choice(POSSIBLE_SURROUNDINGS)
+					if location == 2:
+						offspring_mutation.direction = np.random.choice(POSSIBLE_DIRECTIONS)
+					if location == 3:
+						offspring_mutation.state2 = np.random.choice(POSSIBLE_STATES)
+				with open(offspring_mutation.filename, "w") as f:
+					f.write(offspring_mutation.toString())
+					f.close()
+				try:
+					p.evaluate(offspring_mutation.filename)
+				except Exception or NameError:
+					mutation_attempts += 1
+					continue
+				else:
 					valid = True
 					offsprings.append(offspring_mutation)
-				mutation_attempts += 1
+				
 		return offsprings
 
 	def update_fitness_plot(self):

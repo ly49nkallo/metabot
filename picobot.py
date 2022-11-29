@@ -1,7 +1,6 @@
 import sys
 import random
-import time
-import genetic_evolution_meta_programmer as ge
+
 
 EMPTY = 0
 CLEAR = 1
@@ -22,6 +21,8 @@ LAYOUT_FILE = 'layout.txt'
 INSTRUCTIONS_FILE = 'inst.pico'
 
 BOT_RANDOM = False
+
+
 
 class Board():
     def __init__(self, filename):
@@ -325,16 +326,20 @@ def evaluate(chromosome_file:str):
     '''
         Takes a meta program and executes the program and returns the number of tiles visited
     '''
+    max = 200
     # chromosome is a meta_program
     b = Board(LAYOUT_FILE)
     file = chromosome_file
     p = Player(b, file)
-    while True:
+    s = 0
+    while s < max:
+        s += 1
         if not p.step():
             break
     return b.cells_cleared()
 
 def main():
+    max = 1000
     INSTRUCTIONS_FILEa = INSTRUCTIONS_FILE
     if len(sys.argv) == 2:
         if sys.argv[1] == "help" or sys.argv[1] == "-h":
@@ -346,7 +351,9 @@ def main():
     print(f"Board height: {b.height}\n Board width {b.width}\n Player pos: {b.locateBot()}")
     print(b)
     assert (b.cells_cleared() == 0)
-    while p.step() :
+    s = 0
+    while p.step() and s < max :
+        s += 1
         pass
     else:
         print(b)
